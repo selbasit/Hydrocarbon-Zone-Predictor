@@ -36,13 +36,29 @@ if uploaded_file is not None:
 
     features = df[['GR', 'RD', 'RS', 'CNC', 'ZDEN', 'Resistivity_ratio', 'ND_diff']]
 
-    # Scale features
+    # Generate windowed sequences (reshape to 3D if model expects 3D input)
+    window_size = 10  # Example: use 10 consecutive samples per prediction
+    sequences = []
+    for i in range(len(features) - window_size + 1):
+        window = features.iloc[i:i+window_size].values
+        sequences.append(window)
+    X_seq = np.array(sequences)
+
+    # Scale per feature across all sequences
+    X_reshaped = X_seq.reshape(-1, X_seq.shape[-1])
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(features)
+    X_scaled_flat = scaler.fit_transform(X_reshaped)
+    X_scaled_seq = X_scaled_flat.reshape(X_seq.shape)
 
     # Predict
-    y_pred_prob = model.predict(X_scaled)
-    df['Hydrocarbon_Prob'] = y_pred_prob
+    y_pred_prob = model.predict(X_scaled_seq)
+
+    # Pad results to align with original dataframe
+    pad_front = window_size // 2
+    pad_back = len(df) - len(y_pred_prob) - pad_front
+    y_padded = np.pad(y_pred_prob.squeeze(), (pad_front, pad_back), mode='edge')
+
+    df['Hydrocarbon_Prob'] = y_padded
     threshold = st.slider("Prediction Threshold", 0.0, 1.0, 0.5, 0.01)
     df['Prediction'] = (df['Hydrocarbon_Prob'] >= threshold).astype(int)
 
