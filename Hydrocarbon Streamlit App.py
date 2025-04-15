@@ -44,62 +44,65 @@ if uploaded_file is not None:
             feature_cols_for_model = ['GR', 'RD', 'RS', 'CNC', 'ZDEN']
             model_input = df[feature_cols_for_model].copy()
 
-            sequences = []
-            for i in range(len(model_input) - window_size + 1):
-                window = model_input.iloc[i:i+window_size].values
-                sequences.append(window)
-            X_seq = np.array(sequences)
+            if len(model_input) < window_size:
+                st.warning(f"Not enough rows for prediction. Minimum required: {window_size}")
+            else:
+                sequences = []
+                for i in range(len(model_input) - window_size + 1):
+                    window = model_input.iloc[i:i+window_size].values
+                    sequences.append(window)
+                X_seq = np.array(sequences)
 
-            scaler = StandardScaler()
-            X_seq_flat = X_seq.reshape(-1, X_seq.shape[-1])
-            X_scaled_flat = scaler.fit_transform(X_seq_flat)
-            X_scaled_seq = X_scaled_flat.reshape(X_seq.shape[0], window_size, -1)
+                scaler = StandardScaler()
+                X_seq_flat = X_seq.reshape(-1, X_seq.shape[-1])
+                X_scaled_flat = scaler.fit_transform(X_seq_flat)
+                X_scaled_seq = X_scaled_flat.reshape(X_seq.shape[0], window_size, -1)
 
-            # Predict
-            y_pred_prob = model.predict(X_scaled_seq)
+                # Predict
+                y_pred_prob = model.predict(X_scaled_seq)
 
-            # Align prediction with original dataframe
-            pad_front = window_size // 2
-            pad_back = len(df) - len(y_pred_prob) - pad_front
-            y_padded = np.pad(y_pred_prob.squeeze(), (pad_front, pad_back), mode='edge')
+                # Align prediction with original dataframe
+                pad_front = window_size // 2
+                pad_back = len(df) - len(y_pred_prob) - pad_front
+                y_padded = np.pad(y_pred_prob.squeeze(), (pad_front, pad_back), mode='edge')
 
-            df['Hydrocarbon_Prob'] = y_padded
-            threshold = st.slider("Prediction Threshold", 0.0, 1.0, 0.5, 0.01)
-            df['Prediction'] = (df['Hydrocarbon_Prob'] >= threshold).astype(int)
+                df['Hydrocarbon_Prob'] = y_padded
+                threshold = st.slider("Prediction Threshold", 0.0, 1.0, 0.5, 0.01)
+                df['Prediction'] = (df['Hydrocarbon_Prob'] >= threshold).astype(int)
 
-            # Show prediction
-            st.subheader("Prediction Results")
-            st.write(df[['DEPT', 'Hydrocarbon_Prob', 'Prediction']].head())
+                # Show prediction
+                st.subheader("Prediction Results")
+                st.write(df[['DEPT', 'Hydrocarbon_Prob', 'Prediction']].head())
 
-            # Visualization
-            st.subheader("Log Curves and Hydrocarbon Probability")
-            fig, axs = plt.subplots(1, 4, figsize=(20, 10), sharey=True)
+                # Visualization
+                st.subheader("Log Curves and Hydrocarbon Probability")
+                fig, axs = plt.subplots(1, 4, figsize=(20, 10), sharey=True)
 
-            axs[0].plot(df['GR'], df['DEPT'], label='GR', color='green')
-            axs[0].set_xlabel('GR')
-            axs[0].invert_yaxis()
-            axs[0].grid()
+                axs[0].plot(df['GR'], df['DEPT'], label='GR', color='green')
+                axs[0].set_xlabel('GR')
+                axs[0].invert_yaxis()
+                axs[0].grid()
 
-            axs[1].plot(df['RD'], df['DEPT'], label='RD', color='red')
-            axs[1].set_xlabel('RD')
-            axs[1].grid()
+                axs[1].plot(df['RD'], df['DEPT'], label='RD', color='red')
+                axs[1].set_xlabel('RD')
+                axs[1].grid()
 
-            axs[2].plot(df['CNC'], df['DEPT'], label='CNC', color='purple')
-            axs[2].set_xlabel('CNC')
-            axs[2].grid()
+                axs[2].plot(df['CNC'], df['DEPT'], label='CNC', color='purple')
+                axs[2].set_xlabel('CNC')
+                axs[2].grid()
 
-            axs[3].plot(df['Hydrocarbon_Prob'], df['DEPT'], label='HC Probability', color='blue')
-            axs[3].set_xlabel('HC Probability')
-            axs[3].grid()
+                axs[3].plot(df['Hydrocarbon_Prob'], df['DEPT'], label='HC Probability', color='blue')
+                axs[3].set_xlabel('HC Probability')
+                axs[3].grid()
 
-            for ax in axs:
-                ax.legend()
+                for ax in axs:
+                    ax.legend()
 
-            st.pyplot(fig)
+                st.pyplot(fig)
 
-            # Download
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Results CSV", csv, "prediction_results.csv", "text/csv")
+                # Download
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button("Download Results CSV", csv, "prediction_results.csv", "text/csv")
 
         except Exception as e:
             st.error(f"An error occurred during processing: {e}")
