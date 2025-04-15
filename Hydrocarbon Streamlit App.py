@@ -39,26 +39,26 @@ if uploaded_file is not None:
             df['Porosity_density'] = (2.65 - df['ZDEN']) / (2.65 - 1.0)
             df['ND_diff'] = df['CNC'] - df['Porosity_density']
 
-            features = df[['GR', 'RD', 'RS', 'CNC', 'ZDEN', 'Resistivity_ratio', 'ND_diff']]
+            # Match model input shape: (samples, window, features_per_sample)
+            window_size = 10
+            feature_cols_for_model = ['GR', 'RD', 'RS', 'CNC', 'ZDEN']
+            model_input = df[feature_cols_for_model].copy()
 
-            # Generate windowed sequences (reshape to 3D if model expects 3D input)
-            window_size = 10  # Example: use 10 consecutive samples per prediction
             sequences = []
-            for i in range(len(features) - window_size + 1):
-                window = features.iloc[i:i+window_size].values
+            for i in range(len(model_input) - window_size + 1):
+                window = model_input.iloc[i:i+window_size].values
                 sequences.append(window)
             X_seq = np.array(sequences)
 
-            # Scale per feature across all sequences
-            X_reshaped = X_seq.reshape(-1, X_seq.shape[-1])
             scaler = StandardScaler()
-            X_scaled_flat = scaler.fit_transform(X_reshaped)
-            X_scaled_seq = X_scaled_flat.reshape(X_seq.shape)
+            X_seq_flat = X_seq.reshape(-1, X_seq.shape[-1])
+            X_scaled_flat = scaler.fit_transform(X_seq_flat)
+            X_scaled_seq = X_scaled_flat.reshape(X_seq.shape[0], window_size, -1)
 
             # Predict
             y_pred_prob = model.predict(X_scaled_seq)
 
-            # Pad results to align with original dataframe
+            # Align prediction with original dataframe
             pad_front = window_size // 2
             pad_back = len(df) - len(y_pred_prob) - pad_front
             y_padded = np.pad(y_pred_prob.squeeze(), (pad_front, pad_back), mode='edge')
@@ -71,7 +71,7 @@ if uploaded_file is not None:
             st.subheader("Prediction Results")
             st.write(df[['DEPT', 'Hydrocarbon_Prob', 'Prediction']].head())
 
-            # Visualization: Log curves and probability curve
+            # Visualization
             st.subheader("Log Curves and Hydrocarbon Probability")
             fig, axs = plt.subplots(1, 4, figsize=(20, 10), sharey=True)
 
@@ -97,8 +97,9 @@ if uploaded_file is not None:
 
             st.pyplot(fig)
 
-            # Download option
+            # Download
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("Download Results CSV", csv, "prediction_results.csv", "text/csv")
+
         except Exception as e:
             st.error(f"An error occurred during processing: {e}")
